@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <input type="date" id="startDate" />
+        <input type="date" id="endDate" />
+        <button id="search">Search</button>
+        <p id="error"></p>
+        <div id="images"></div>
+        <script>
+            const apiBase = 'https://mi4wps7v4m.execute-api.eu-west-2.amazonaws.com/test';
+
+            let errorPara = document.getElementById("error");
+            let detailImageDiv = null;
+
+            function displayImageDetail(image) {
+                if (!detailImageDiv) {
+                    detailImageDiv = document.createElement("div");
+                }
+                detailImageDiv.innerHTML = "";
+                detailImageDiv.style = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9)';
+
+                const closePara = document.createElement("p");
+                closePara.style = 'color: white';
+                closePara.innerText = "Close";
+                closePara.addEventListener("click", () => {
+                    detailImageDiv.innerHTML = "";
+                    detailImageDiv.style = '';
+                })
+                detailImageDiv.appendChild(closePara);
+                const img = document.createElement("img");
+                img.style = 'max-width: 100%; max-height: 100%';
+                const timeCreated = new Date(image["timeCreated"]);
+                const year = timeCreated.getFullYear();
+                const month = timeCreated.toISOString().substr(5,2);
+                const accessURL = `${apiBase}/access?year=${year}&month=${month}&id=${image["id"]}&image_type=standard`;
+                fetch(accessURL)
+                    .then(response => response.json())
+                    .then(data => {
+                        img.src = data["url"];
+                    });
+                detailImageDiv.appendChild(img);
+                document.getElementsByTagName("body")[0].appendChild(detailImageDiv);
+            }
+
+            const startDateElement = document.getElementById("startDate");
+            const endDateElement = document.getElementById("endDate");
+            const search = document.getElementById("search");
+            const images = document.getElementById("images");
+            search.addEventListener("click", () => {
+                if (!startDateElement.value || !endDateElement.value) {
+                    return;
+                }
+                errorPara.innerText = "";
+                images.innerHTML = "";
+                const startDate = new Date(startDateElement.value).toISOString();
+                const endDate = new Date(endDateElement.value).toISOString();
+                const url = `${apiBase}/search?start_date=${startDate}&end_date=${endDate}`;
+                fetch(url)
+                    .then(response => {
+                        if (response.status != 200) {
+                            throw new Error(response.statusText);
+                        }
+                        return response.json();
+                    })                  
+                    .then(data => {
+                        data["images"].forEach(image => {
+                            const imageDiv = document.createElement("div");
+                            const imageIdPara = document.createElement("p");
+                            imageIdPara.innerHTML = image["id"];
+                            imageDiv.appendChild(imageIdPara);
+                            const timePara = document.createElement("p");
+                            timePara.innerHTML = image["timeCreated"];
+                            imageDiv.appendChild(timePara);
+                            const img = document.createElement("img");
+                            const timeCreated = new Date(image["timeCreated"]);
+                            const year = timeCreated.getFullYear();
+                            const month = timeCreated.toISOString().substr(5,2);
+                            const accessURL = `${apiBase}/access?year=${year}&month=${month}&id=${image["id"]}&image_type=thumbnail`;
+                            fetch(accessURL)
+                                .then(response => response.json())
+                                .then(data => {
+                                    img.src = data["url"];
+                                });
+                            img.addEventListener("click", () => displayImageDetail(image));
+                            imageDiv.appendChild(img);
+                            images.appendChild(imageDiv);
+                        });
+                    })
+                    .catch(err => {
+                        errorPara.innerText = err;
+                    })
+            })
+        </script>
+    </body>
+</html>

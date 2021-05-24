@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+    <body>
+        <div
+            id="dropzone"
+            style="min-height: 200px; white-space: pre; border: 1px solid black;"
+            ondragenter="event.stopPropagation(); event.preventDefault();"
+            ondragover="event.stopPropagation(); event.preventDefault();"
+        >
+            Drop files here
+        </div>
+        <div id="messages"></div>
+
+        <script>
+            const apiBase = 'https://mi4wps7v4m.execute-api.eu-west-2.amazonaws.com/test';
+
+            const messages = document.getElementById("messages");
+
+            const dropzone = document.getElementById("dropzone");
+            dropzone.addEventListener("drop", async (event) => {
+                event.stopPropagation();
+                event.preventDefault();
+
+                const dt = event.dataTransfer;
+                const files = dt.files;
+
+                const count = files.length;
+                messages.innerHTML += `<p>${count} files dropeed</p>`;
+
+                for (file of files) {
+                    if (file.type !== 'image/jpeg') continue;
+
+                    const buffer = await file.arrayBuffer();
+
+                    const accessRequestUrl = `${apiBase}/upload-access?filename=${file.name}`;
+                    fetch(accessRequestUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            messages.innerHTML += `<p>Uploading ${file.name}</p>`;
+                            const uploadUrl = data["url"];
+                            fetch(uploadUrl, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'image/jpeg'
+                                },
+                                body: buffer,
+                            })
+                                .then(response => {
+                                    if (response.status !== 200) {
+                                        messages.innerHTML += `<p>Error uploading ${file.name}</p>`;
+                                    } else {
+                                        messages.innerHTML += `<p>Uploaded ${file.name}</p>`;
+                                    }
+                                })
+                        })
+                } 
+            });
+        </script>
+    </body>
+</html>
