@@ -3,7 +3,7 @@ from urllib.parse import unquote_plus
 import boto3
 import json
 import uuid
-from PIL import Image
+from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS
 
 rds_client = boto3.client('rds-data')
@@ -15,6 +15,31 @@ s3_client = boto3.client(
 cluster_arn = 'arn:aws:rds:eu-west-2:306578912108:cluster:database-1'
 secret_arn = 'arn:aws:secretsmanager:eu-west-2:306578912108:secret:rds-db-credentials/cluster-QBRFG6NNVJEGKYGGMCDHRUGXVA/admin-F2AjV8' 
 database = 'photoarchive'
+image_longest_sides = {'thumbnail': 300, 'standard': 800}
+
+def resize(image, image_type):
+    new_longest_side = image_longest_sides[image_type]
+
+    if image.size[0] > image.size[1]:
+        width_longest = True
+        cur_longest_side = image.size[0]
+    else:
+        width_longest = False
+        cur_longest_side = image.size[1]
+
+    # If the current longest side is less than or equal to the new longest side
+    # then we don't need to do any resizing, return current size
+    if cur_longest_side <= new_longest_side:
+        new_size = image.size
+    else:
+        ratio = image.size[1] / image.size[0]
+
+        if width_longest:
+            new_size = (new_longest_side, round(new_longest_side * ratio))
+        else:
+            new_size = (round(new_longest_side / ratio), new_longest_side)
+
+    return ImageOps.exif_transpose(image.resize(new_size, Image.BICUBIC))
 
 def lambda_handler(event, context):
     # Validity check s3 records exist
@@ -102,4 +127,21 @@ def lambda_handler(event, context):
                 Key=key,
             )
 
+            for image_type in ['thumbnail', 'standard']:
+                target_path = '/tmp/resized_{id}.jpg'.format(id=image_id)
+                new_image = resize(image, image_type)
+                new_image.save(target_path)
+                folder = 'thumbnails' if image_type == 'thumbnail' else 'standard'
+                target_key = '{folder}/{year}/{month}/{id}.jpg'.format(
+                    folder = folder,
+                    year = year,
+                    month = month,
+                    id = image_id
+                )
+                s3_client.upload_file(
+                    target_path,
+                    bucket,
+                    target_key,
+                    ExtraArgs={'ContentType': 'image/jpeg'}
+                )
         
