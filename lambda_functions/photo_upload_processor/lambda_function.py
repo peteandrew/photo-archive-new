@@ -109,6 +109,30 @@ def lambda_handler(event, context):
                 ]
             )
 
+            try:
+                camera = exif_data['Make']
+                camera += f" {exif_data['Model']}"
+                camera_tag = f"camera: {camera}"
+                rds_client.execute_statement(
+                    resourceArn = cluster_arn,
+                    secretArn = secret_arn,
+                    database = database,
+                    sql = 'insert into image_tag (image_id, tag) values (:id, :tag)',
+                    parameters = [
+                        {
+                            'name': 'id',
+                            'value': {'stringValue': image_id}
+                        },
+                        {
+                            'name': 'tag',
+                            'value': {'stringValue': camera_tag}
+                        },
+                    ]
+                )
+
+            except KeyError:
+                pass
+
             target_key = 'originals/{year}/{month}/{id}.jpg'.format(
                 year = year,
                 month = month,
