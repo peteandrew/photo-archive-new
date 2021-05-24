@@ -12,11 +12,17 @@ def lambda_handler(event, context):
     from_datetime = datetime.strptime(event['queryStringParameters']['start_date'], "%Y-%m-%dT%H:%M:00.000Z")
     to_datetime = datetime.strptime(event['queryStringParameters']['end_date'], "%Y-%m-%dT%H:%M:00.000Z")
     
+    sql = (
+        "select i.id, i.time_created, it.tag "
+        "from images i "
+        "left join image_tag it on it.image_id = i.id "
+        "where time_created >= :from_datetime and time_created < :to_datetime"
+    )
     response = rds_client.execute_statement(
         resourceArn = cluster_arn, 
         secretArn = secret_arn, 
         database = database, 
-        sql = 'select id, time_created from images where time_created >= :from_datetime and time_created < :to_datetime',
+        sql = sql,
         parameters = [
             {
                 'name': 'from_datetime',
@@ -30,8 +36,18 @@ def lambda_handler(event, context):
             },
         ]
     )
-    images = [{'id': record[0]['stringValue'], 'timeCreated': record[1]['stringValue']} for record in response['records']]
-    
+    images = []
+    last_image = None
+    for record in response['records']:
+        if not last_image or last_image['id'] != record[0]['stringValue']:
+            if last_image:
+                images.append(last_image)
+            last_image = {'id': record[0]['stringValue'], 'timeCreated': record[1]['stringValue'], 'tags': []}
+
+        if 'stringValue' in record[2]:
+            last_image['tags'].append(record[2]['stringValue'])
+    images.append(last_image)
+
     return {
         'statusCode': 200,
         'headers': {
