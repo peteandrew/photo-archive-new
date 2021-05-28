@@ -1,2 +1,5 @@
 create table images (id varchar(36) primary key, time_created datetime not null, time_processed datetime not null, original_directory varchar(255) not null default '', index (time_created));
-create table image_tag (image_id varchar(36) not null, tag varchar(255) not null, unique(image_id, tag), index(tag));
+create table image_metadata (image_id varchar(36) not null, type varchar(255) not null, value varchar(255) not null, index(image_id, type), foreign key (image_id) references images(id));
+create table image_tag (image_id varchar(36) not null, tag varchar(255) not null, unique(image_id, tag), index(tag), foreign key (image_id) references images(id));
+create table image_process_queue (image_id varchar(36) primary key);
+create table camera_photographer (camera varchar(255) primary key, photographer varchar(255) not null);

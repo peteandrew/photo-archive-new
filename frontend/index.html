@@ -65,12 +65,31 @@
                     .then(data => {
                         data["images"].forEach(image => {
                             const imageDiv = document.createElement("div");
+
                             const imageIdPara = document.createElement("p");
                             imageIdPara.innerHTML = image["id"];
                             imageDiv.appendChild(imageIdPara);
+                            
                             const timePara = document.createElement("p");
                             timePara.innerHTML = image["timeCreated"];
                             imageDiv.appendChild(timePara);
+                            
+                            const metadataPara = document.createElement("p");
+                            let metadataStr = '';
+                            const metadata = image["metadata"];
+                            if (metadata["camera"]) {
+                                metadataStr = `${metadataStr} Camera: ${metadata["camera"]}`;
+                            }
+                            if (metadata["photographer"]) {
+                                metadataStr = `${metadataStr}, Photographer: ${metadata["photographer"]}`;
+                            }
+                            metadataPara.innerHTML = metadataStr;
+                            imageDiv.appendChild(metadataPara);
+                            
+                            const tagsPara = document.createElement("p");
+                            tagsPara.innerHTML = `Tags: ${image["tags"]}`;
+                            imageDiv.appendChild(tagsPara);
+                            
                             const img = document.createElement("img");
                             const timeCreated = new Date(image["timeCreated"]);
                             const year = timeCreated.getFullYear();
@@ -83,6 +102,7 @@
                                 });
                             img.addEventListener("click", () => displayImageDetail(image));
                             imageDiv.appendChild(img);
+                            
                             images.appendChild(imageDiv);
                         });
                     })

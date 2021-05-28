@@ -9,44 +9,100 @@ secret_arn = 'arn:aws:secretsmanager:eu-west-2:306578912108:secret:rds-db-creden
 database = 'photoarchive'
 
 def lambda_handler(event, context):
-    from_datetime = datetime.strptime(event['queryStringParameters']['start_date'], "%Y-%m-%dT%H:%M:00.000Z")
-    to_datetime = datetime.strptime(event['queryStringParameters']['end_date'], "%Y-%m-%dT%H:%M:00.000Z")
-    
+    where_clauses = []
+    where_params = []
+    if event['queryStringParameters']:
+        if 'start_date' in event['queryStringParameters']:
+            from_datetime = datetime.strptime(event['queryStringParameters']['start_date'], "%Y-%m-%dT%H:%M:00.000Z")
+            where_clauses.append('time_created >= :from_datetime')
+            where_params.append({
+                'name': 'from_datetime',
+                'typeHint': 'TIMESTAMP',
+                'value': {'stringValue': str(from_datetime)}
+            })
+        if 'end_date' in event['queryStringParameters']:
+            to_datetime = datetime.strptime(event['queryStringParameters']['end_date'], "%Y-%m-%dT%H:%M:00.000Z")
+            where_clauses.append('time_created < :to_datetime')
+            where_params.append({
+                'name': 'to_datetime',
+                'typeHint': 'TIMESTAMP',
+                'value': {'stringValue': str(to_datetime)}
+            })
+        if 'tag' in event['queryStringParameters']:
+            tag = event['queryStringParameters']['tag']
+            where_clauses.append('tag = :tag')
+            where_params.append({
+                'name': 'tag',
+                'value': {'stringValue': tag}
+            })
+        if 'photographer' in event['queryStringParameters']:
+            photographer = event['queryStringParameters']['photographer']
+            where_clauses.append("im.type = 'photographer' and im.value = :photographer")
+            where_params.append({
+                'name': 'photographer',
+                'value': {'stringValue': photographer}
+            })
+
     sql = (
-        "select i.id, i.time_created, it.tag "
+        "select i2.id, i2.time_created, it2.tag, im2.type, im2.value "
+        "from images i2 "
+        "left join image_tag it2 on it2.image_id = i2.id "
+        "left join image_metadata im2 on im2.image_id = i2.id "
+        "where i2.id in (select * from ("
+        "select i.id "
         "from images i "
         "left join image_tag it on it.image_id = i.id "
-        "where time_created >= :from_datetime and time_created < :to_datetime"
+        "left join image_metadata im on im.image_id = i.id "
+
     )
+    if len(where_clauses) > 0:
+        sql += "where "
+        previous_clause = False
+        for where_clause in where_clauses:
+            if previous_clause:
+                sql += "and "
+            sql += where_clause + " "
+            previous_clause = True
+    sql += (
+        "limit 500) as img2) "
+        "order by i2.time_created"
+    )
+
+    print(sql)
+
     response = rds_client.execute_statement(
         resourceArn = cluster_arn, 
         secretArn = secret_arn, 
         database = database, 
         sql = sql,
-        parameters = [
-            {
-                'name': 'from_datetime',
-                'typeHint': 'TIMESTAMP',
-                'value': {'stringValue': str(from_datetime)}
-            },
-            {
-                'name': 'to_datetime',
-                'typeHint': 'TIMESTAMP',
-                'value': {'stringValue': str(to_datetime)}
-            },
-        ]
+        parameters = where_params
     )
-    images = []
-    last_image = None
+    images = {}
     for record in response['records']:
-        if not last_image or last_image['id'] != record[0]['stringValue']:
-            if last_image:
-                images.append(last_image)
-            last_image = {'id': record[0]['stringValue'], 'timeCreated': record[1]['stringValue'], 'tags': []}
+        image_id = record[0]['stringValue']
+        if image_id not in images:
+            images[image_id] = {
+                'id': image_id,
+                'timeCreated': record[1]['stringValue'],
+                'tags': {},
+                'metadata': {},
+            }
 
         if 'stringValue' in record[2]:
-            last_image['tags'].append(record[2]['stringValue'])
-    images.append(last_image)
+            tag = record[2]['stringValue']
+            images[image_id]['tags'][tag] = True
+
+        if 'stringValue' in record[3] and 'stringValue' in record[4]:
+            metadata_type = record[3]['stringValue']
+            metadata_value = record[4]['stringValue']
+            images[image_id]['metadata'][metadata_type] = metadata_value
+
+    images_list = list(
+        map(lambda image: {
+            **image,
+            'tags': list(image['tags'].keys())
+        }, images.values())
+    )
 
     return {
         'statusCode': 200,
@@ -55,5 +111,5 @@ def lambda_handler(event, context):
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
         },
-        'body': json.dumps({'images': images})
+        'body': json.dumps({'images': images_list})
     }
