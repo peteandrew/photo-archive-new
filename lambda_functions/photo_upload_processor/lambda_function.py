@@ -58,6 +58,19 @@ def lambda_handler(event, context):
         sql = 'select count(1) from images'
     )
 
+    # Get camera photographers
+    response = rds_client.execute_statement(
+        resourceArn = cluster_arn, 
+        secretArn = secret_arn, 
+        database = database, 
+        sql = "select camera, photographer from camera_photographer"
+    )
+    camera_photographers = {}
+    for record in response['records']:
+        camera = record[0]['stringValue']
+        photographer = record[1]['stringValue']
+        camera_photographers[camera] = photographer
+
     for record in s3_records:
         bucket = record['s3']['bucket']['name']
         print(bucket)
@@ -129,8 +142,31 @@ def lambda_handler(event, context):
                     ]
                 )
 
+                try:
+                    photographer = camera_photographers[camera]
+                    print(photographer)
+                    rds_client.execute_statement(
+                        resourceArn = cluster_arn,
+                        secretArn = secret_arn,
+                        database = database,
+                        sql = 'insert into image_metadata (image_id, type, value) values (:id, "photographer", :photographer)',
+                        parameters = [
+                            {
+                                'name': 'id',
+                                'value': {'stringValue': image_id}
+                            },
+                            {
+                                'name': 'photographer',
+                                'value': {'stringValue': photographer}
+                            },
+                        ]
+                    )
+
+                except KeyError:
+                    print("No photographer for camera")
+
             except KeyError:
-                pass
+                print("No camera data")
 
             target_key = 'originals/{year}/{month}/{id}.jpg'.format(
                 year = year,
