@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import boto3
+import botocore
 
 rds_client = boto3.client('rds-data')
 
@@ -70,13 +71,26 @@ def lambda_handler(event, context):
 
     print(sql)
 
-    response = rds_client.execute_statement(
-        resourceArn = cluster_arn, 
-        secretArn = secret_arn, 
-        database = database, 
-        sql = sql,
-        parameters = where_params
-    )
+    try:
+        response = rds_client.execute_statement(
+            resourceArn = cluster_arn, 
+            secretArn = secret_arn, 
+            database = database, 
+            sql = sql,
+            parameters = where_params
+        )
+    except botocore.exceptions.BadRequestException as e:
+        print(e.message)
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'OPTIONS,GET',
+            },
+            'body': 'Could not connect to database'
+        }
+
     images = {}
     for record in response['records']:
         image_id = record[0]['stringValue']
