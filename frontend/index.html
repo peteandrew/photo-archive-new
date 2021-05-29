@@ -86,9 +86,28 @@
                             metadataPara.innerHTML = metadataStr;
                             imageDiv.appendChild(metadataPara);
                             
-                            const tagsPara = document.createElement("p");
-                            tagsPara.innerHTML = `Tags: ${image["tags"]}`;
-                            imageDiv.appendChild(tagsPara);
+                            const tagsDiv = document.createElement("div");
+                            const tagsLabel = document.createElement("label");
+                            tagsLabel.innerText = "Tags";
+                            tagsDiv.appendChild(tagsLabel);
+                            const tagsInput = document.createElement("input");
+                            tagsInput.value = image["tags"].join(', ');
+                            const tagsUpdateButton = document.createElement("button");
+                            tagsUpdateButton.innerText = "update";
+                            tagsUpdateButton.addEventListener("click", () => {
+                                const tags = tagsInput.value;
+                                const tagsUpdateURL = `${apiBase}/photo-tags?image_id=${image["id"]}`;
+                                fetch(tagsUpdateURL, {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(tags.split(',').map(tag => tag.trim()))
+                                })
+                            });
+                            tagsDiv.appendChild(tagsUpdateButton);
+                            tagsDiv.appendChild(tagsInput);
+                            imageDiv.appendChild(tagsDiv);
                             
                             const img = document.createElement("img");
                             const timeCreated = new Date(image["timeCreated"]);
