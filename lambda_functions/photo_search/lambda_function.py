@@ -79,7 +79,7 @@ def lambda_handler(event, context):
             sql = sql,
             parameters = where_params
         )
-    except botocore.exceptions.BadRequestException as e:
+    except rds_client.exceptions.BadRequestException as e:
         print(e.message)
         return {
             'statusCode': 500,
