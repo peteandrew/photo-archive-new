@@ -29,13 +29,15 @@ def lambda_handler(event, context):
                 'typeHint': 'TIMESTAMP',
                 'value': {'stringValue': str(to_datetime)}
             })
-        if 'tag' in event['queryStringParameters']:
-            tag = event['queryStringParameters']['tag']
-            where_clauses.append('tag = :tag')
-            where_params.append({
-                'name': 'tag',
-                'value': {'stringValue': tag}
-            })
+        if 'tag' in event['multiValueQueryStringParameters']:
+            tag_num = 1
+            for tag in event['multiValueQueryStringParameters']:
+                where_clauses.append(f'tag = :tag_{tag_num}')
+                where_params.append({
+                    'name': f'tag_{tag_num}',
+                    'value': {'stringValue': tag}
+                })
+                tag_num += 1
         if 'photographer' in event['queryStringParameters']:
             photographer = event['queryStringParameters']['photographer']
             where_clauses.append("im.type = 'photographer' and im.value = :photographer")
@@ -66,7 +68,7 @@ def lambda_handler(event, context):
             previous_clause = True
     sql += (
         "limit 500) as img2) "
-        "order by i2.time_created"
+        "order by i2.time_created desc"
     )
 
     print(sql)
