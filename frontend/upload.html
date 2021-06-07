@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html>
     <body>
+        <input
+            id="fileSelect"
+            type='file'
+            multiple
+        />
         <div
             id="dropzone"
             style="min-height: 200px; white-space: pre; border: 1px solid black;"
@@ -16,16 +21,10 @@
 
             const messages = document.getElementById("messages");
 
-            const dropzone = document.getElementById("dropzone");
-            dropzone.addEventListener("drop", async (event) => {
-                event.stopPropagation();
-                event.preventDefault();
-
-                const dt = event.dataTransfer;
-                const files = dt.files;
-
+            async function processFiles(files) {
                 const count = files.length;
-                messages.innerHTML += `<p>${count} files dropeed</p>`;
+                if (count === 0) return;
+                messages.innerHTML += `<p>${count} files</p>`;
 
                 for (file of files) {
                     if (file.type !== 'image/jpeg') continue;
@@ -53,7 +52,26 @@
                                     }
                                 })
                         })
-                } 
+                }
+            }
+
+            const fileSelect = document.getElementById("fileSelect");
+            fileSelect.addEventListener("change", event => {
+                event.stopPropagation();
+                event.preventDefault();
+
+                const files = event.target.files;
+                processFiles(files);
+            });
+
+            const dropzone = document.getElementById("dropzone");
+            dropzone.addEventListener("drop", event => {
+                event.stopPropagation();
+                event.preventDefault();
+
+                const dt = event.dataTransfer;
+                const files = dt.files;
+                processFiles(files);
             });
         </script>
     </body>

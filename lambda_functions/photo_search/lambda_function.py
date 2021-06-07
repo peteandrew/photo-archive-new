@@ -80,7 +80,7 @@ def lambda_handler(event, context):
             parameters = where_params
         )
     except rds_client.exceptions.BadRequestException as e:
-        print(e.message)
+        print(e)
         return {
             'statusCode': 500,
             'headers': {
