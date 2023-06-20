@@ -27,15 +27,17 @@
                 messages.innerHTML += `<p>${count} files</p>`;
 
                 for (file of files) {
-                    if (file.type !== 'image/jpeg') continue;
+                    let currentFile = file;
+                    if (currentFile.type !== 'image/jpeg') continue;
 
-                    const buffer = await file.arrayBuffer();
+                    const buffer = await currentFile.arrayBuffer();
 
-                    const accessRequestUrl = `${apiBase}/upload-access?filename=${file.name}`;
+                    const accessRequestUrl = `${apiBase}/upload-access?filename=${currentFile.name}`;
+
                     fetch(accessRequestUrl)
                         .then(response => response.json())
                         .then(data => {
-                            messages.innerHTML += `<p>Uploading ${file.name}</p>`;
+                            messages.innerHTML += `<p>Uploading ${currentFile.name}</p>`;
                             const uploadUrl = data["url"];
                             fetch(uploadUrl, {
                                 method: 'PUT',
@@ -46,9 +48,9 @@
                             })
                                 .then(response => {
                                     if (response.status !== 200) {
-                                        messages.innerHTML += `<p>Error uploading ${file.name}</p>`;
+                                        messages.innerHTML += `<p>Error uploading ${currentFile.name}</p>`;
                                     } else {
-                                        messages.innerHTML += `<p>Uploaded ${file.name}</p>`;
+                                        messages.innerHTML += `<p>Uploaded ${currentFile.name}</p>`;
                                     }
                                 })
                         })
