@@ -31,7 +31,7 @@ def lambda_handler(event, context):
             })
         if 'tag' in event['multiValueQueryStringParameters']:
             tag_num = 1
-            for tag in event['multiValueQueryStringParameters']:
+            for tag in event['multiValueQueryStringParameters']['tag']:
                 where_clauses.append(f'tag = :tag_{tag_num}')
                 where_params.append({
                     'name': f'tag_{tag_num}',
@@ -72,6 +72,7 @@ def lambda_handler(event, context):
     )
 
     print(sql)
+    print(where_params)
 
     try:
         response = rds_client.execute_statement(
