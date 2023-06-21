@@ -15,7 +15,7 @@ s3_client = boto3.client(
 cluster_arn = 'arn:aws:rds:eu-west-2:306578912108:cluster:database-1'
 secret_arn = 'arn:aws:secretsmanager:eu-west-2:306578912108:secret:rds-db-credentials/cluster-QBRFG6NNVJEGKYGGMCDHRUGXVA/admin-F2AjV8' 
 database = 'photoarchive'
-image_longest_sides = {'thumbnail': 300, 'standard': 800}
+image_longest_sides = {'thumbnail': 500, 'standard': 2000}
 
 def resize(image, image_type):
     new_longest_side = image_longest_sides[image_type]

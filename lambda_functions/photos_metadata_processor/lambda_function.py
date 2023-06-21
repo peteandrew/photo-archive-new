@@ -20,7 +20,7 @@ bucket = 'peteandrew-photoarchive-eu'
 cluster_arn = 'arn:aws:rds:eu-west-2:306578912108:cluster:database-1'
 secret_arn = 'arn:aws:secretsmanager:eu-west-2:306578912108:secret:rds-db-credentials/cluster-QBRFG6NNVJEGKYGGMCDHRUGXVA/admin-F2AjV8' 
 database = 'photoarchive'
-image_longest_sides = {'thumbnail': 300, 'standard': 800}
+image_longest_sides = {'thumbnail': 500, 'standard': 2000}
 
 def add_retry_rule(context):
     """
@@ -135,7 +135,7 @@ def lambda_handler(event, context):
         "select ipq.image_id, i.time_created "
         "from image_process_queue ipq "
         "join images i on i.id = ipq.image_id "
-        "limit 100"
+        "limit 30"
     )
     response = rds_client.execute_statement(
         resourceArn = cluster_arn, 
@@ -229,28 +229,46 @@ def lambda_handler(event, context):
             except KeyError:
                 print("No camera data")
 
-
-            # Check whether thumbnail exists and if not, generate one
-            thumbnail_key = 'thumbnails/{year}/{month}/{id}.jpg'.format(
-                year = year,
-                month = month,
-                id = image_id
-            )
-            try:
-                s3_client.head_object(Bucket=bucket, Key=thumbnail_key)
-            except botocore.exceptions.ClientError as e:
-                target_path = '/tmp/resized_{id}.jpg'.format(id=id)
-                new_image = resize(image, 'thumbnail')
+            for image_type in ['thumbnail', 'standard']:
+                target_path = '/tmp/resized_{id}.jpg'.format(id=image_id)
+                new_image = resize(image, image_type)
                 new_image.save(target_path)
-
+                folder = 'thumbnails' if image_type == 'thumbnail' else 'standard'
+                target_key = '{folder}/{year}/{month}/{id}.jpg'.format(
+                    folder = folder,
+                    year = year,
+                    month = month,
+                    id = image_id
+                )
                 s3_client.upload_file(
                     target_path,
                     bucket,
-                    thumbnail_key,
+                    target_key,
                     ExtraArgs={'ContentType': 'image/jpeg'}
                 )
-
                 os.remove(target_path)
+
+            # Check whether thumbnail exists and if not, generate one
+            # thumbnail_key = 'thumbnails/{year}/{month}/{id}.jpg'.format(
+            #     year = year,
+            #     month = month,
+            #     id = image_id
+            # )
+            # try:
+            #     s3_client.head_object(Bucket=bucket, Key=thumbnail_key)
+            # except botocore.exceptions.ClientError as e:
+            #     target_path = '/tmp/resized_{id}.jpg'.format(id=id)
+            #     new_image = resize(image, 'thumbnail')
+            #     new_image.save(target_path)
+
+            #     s3_client.upload_file(
+            #         target_path,
+            #         bucket,
+            #         thumbnail_key,
+            #         ExtraArgs={'ContentType': 'image/jpeg'}
+            #     )
+
+            #     os.remove(target_path)
 
         os.remove(source_path)
 
