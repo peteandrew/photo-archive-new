@@ -25,6 +25,7 @@
                 const count = files.length;
                 if (count === 0) return;
                 messages.innerHTML += `<p>${count} files</p>`;
+                let fileNum = 0;
 
                 for (file of files) {
                     let currentFile = file;
@@ -47,10 +48,12 @@
                                 body: buffer,
                             })
                                 .then(response => {
+                                    fileNum++;
+                                    let curFileNum = fileNum;
                                     if (response.status !== 200) {
                                         messages.innerHTML += `<p>Error uploading ${currentFile.name}</p>`;
                                     } else {
-                                        messages.innerHTML += `<p>Uploaded ${currentFile.name}</p>`;
+                                        messages.innerHTML += `<p>Uploaded ${currentFile.name}, file ${curFileNum} of ${count}</p>`;
                                     }
                                 })
                         })

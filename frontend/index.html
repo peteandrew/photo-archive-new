@@ -1,16 +1,105 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Photo Archive</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    </head>
+
     <body>
-        <input type="date" id="startDate" />
-        <input type="date" id="endDate" />
-        <button id="search">Search</button>
-        <p id="error"></p>
-        <div id="images"></div>
+        <nav class="navbar is-primary" role="navigation" aria-label="main navigation">
+            <div class="navbar-brand">
+                <div class="navbar-item is-size-3">Photo Archive</div>
+            </div>
+        </nav>
+
+        <section class="section">
+            <div class="container">
+
+                <section class="section px-0 pt-0 pb-4">
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label">Dates</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <p class="control">
+                                    <input class="input" type="date" id="startDate" />
+                                </p>
+                            </div>
+                            <div class="field">
+                                <p class="control">
+                                    <input class="input" type="date" id="endDate" />
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field is-horizontal">
+                        <div class="field-label"></div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <button class="button is-link" id="search">Search</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field is-horizontal">
+                        <div id="numImages" class="field-label">Num images found: 0</div>
+                    </div>
+
+                    <div id="pages" class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label">Page</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <p class="control">
+                                    <input class="input" type="number" id="page" value="1" min="1" />
+                                    <span id="numPages">of 1</p>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p id="error"></p>
+                </section>
+
+                <section class="section px-0">
+                    <div class="columns is-multiline" id="images"></div>
+                </section>
+
+            </div>
+        </section>
+
         <script>
             const apiBase = 'https://mi4wps7v4m.execute-api.eu-west-2.amazonaws.com/test';
 
-            let errorPara = document.getElementById("error");
+            const startDateEl = document.getElementById("startDate");
+            const endDateEl = document.getElementById("endDate");
+            const search = document.getElementById("search");
+            const numImagesEl = document.getElementById("numImages");
+            const pagesEl = document.getElementById("pages");
+            const numPagesEl = document.getElementById("numPages");
+            const pageEl = document.getElementById("page");
+            const images = document.getElementById("images");
+            const errorPara = document.getElementById("error");
             let detailImageDiv = null;
+
+            endDateEl.disabled = true;
+            search.disabled = true;
+
+            function resetResults() {
+                pageEl.value = 1;
+                numImagesEl.hidden = true;
+                pagesEl.hidden = true;
+                errorPara.innerText = "";
+                images.innerHTML = "";
+            }
+            resetResults();
 
             function displayImageDetail(image) {
                 if (!detailImageDiv) {
@@ -42,19 +131,13 @@
                 document.getElementsByTagName("body")[0].appendChild(detailImageDiv);
             }
 
-            const startDateElement = document.getElementById("startDate");
-            const endDateElement = document.getElementById("endDate");
-            const search = document.getElementById("search");
-            const images = document.getElementById("images");
-            search.addEventListener("click", () => {
-                if (!startDateElement.value || !endDateElement.value) {
-                    return;
-                }
+            function fetchImages() {
+                const startDate = new Date(startDateEl.value).toISOString();
+                const endDate = new Date(endDateEl.value).toISOString();
+                const page = pageEl.value - 1;
+                const url = `${apiBase}/search?start_date=${startDate}&end_date=${endDate}&page=${page}`;
                 errorPara.innerText = "";
                 images.innerHTML = "";
-                const startDate = new Date(startDateElement.value).toISOString();
-                const endDate = new Date(endDateElement.value).toISOString();
-                const url = `${apiBase}/search?start_date=${startDate}&end_date=${endDate}`;
                 fetch(url)
                     .then(response => {
                         if (response.status != 200) {
@@ -63,6 +146,11 @@
                         return response.json();
                     })                  
                     .then(data => {
+                        numImagesEl.innerHTML = `Num images found ${data["images_matched"]}`;
+                        numImagesEl.hidden = false;
+                        numPagesEl.innerHTML = `of ${data["pages"]}`;
+                        pageEl.max = data["pages"];
+                        pagesEl.hidden = false;
                         data["images"].forEach(image => {
                             const imageDiv = document.createElement("div");
 
@@ -128,7 +216,32 @@
                     .catch(err => {
                         errorPara.innerText = err;
                     })
-            })
+            }
+
+            startDateEl.addEventListener("change", () => {
+                if (!startDateEl.value) return;
+                const startDate = new Date(startDateEl.value);
+                const endDate = new Date(startDate);
+                endDate.setMonth(endDate.getMonth() + 3);
+                endDateEl.value = endDate.toISOString().substring(0, 10);
+                endDateEl.disabled = false;
+
+                search.disabled = false;
+                resetResults();
+            });
+
+            endDateEl.addEventListener("change", () => {
+                resetResults();
+            });
+
+            search.addEventListener("click", () => {
+                resetResults();
+                fetchImages();
+            });
+
+            pageEl.addEventListener("change", () => {
+                fetchImages();
+            });
         </script>
     </body>
 </html>
