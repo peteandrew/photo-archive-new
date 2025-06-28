@@ -5,7 +5,7 @@ from botocore.client import Config
 from PIL import Image, ImageOps
 
 bucket = 'peteandrew-photoarchive-eu'
-image_longest_sides = {'thumbnail': 300, 'standard': 800}
+image_longest_sides = {'thumbnail': 500, 'standard': 2000}
 
 s3_client = boto3.client(
     's3',

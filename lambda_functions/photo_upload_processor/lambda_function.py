@@ -1,20 +1,21 @@
+import json
+import os
+import uuid
+
 from datetime import datetime, time
 from urllib.parse import unquote_plus
+
 import boto3
-import json
-import uuid
+import psycopg2
+
 from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS
 
-rds_client = boto3.client('rds-data')
 s3_client = boto3.client(
     's3',
     region_name='eu-west-2'
 )
 
-cluster_arn = 'arn:aws:rds:eu-west-2:306578912108:cluster:database-1'
-secret_arn = 'arn:aws:secretsmanager:eu-west-2:306578912108:secret:rds-db-credentials/cluster-QBRFG6NNVJEGKYGGMCDHRUGXVA/admin-F2AjV8' 
-database = 'photoarchive'
 image_longest_sides = {'thumbnail': 500, 'standard': 2000}
 
 def resize(image, image_type):
@@ -49,26 +50,21 @@ def lambda_handler(event, context):
     if len(s3_records) == 0:
         return
 
-    # Check if RDS DB is available (running)
-    # Will raise an exception if not and function will be retried
-    rds_client.execute_statement(
-        resourceArn = cluster_arn, 
-        secretArn = secret_arn, 
-        database = database, 
-        sql = 'select count(1) from images'
-    )
+    if 'DB_CONN' not in os.environ:
+        print("DB_CONN environment variable not set")
+        return
+
+    conn = psycopg2.connect(os.environ['DB_CONN'])
 
     # Get camera photographers
-    response = rds_client.execute_statement(
-        resourceArn = cluster_arn, 
-        secretArn = secret_arn, 
-        database = database, 
-        sql = "select camera, photographer from camera_photographer"
-    )
+    with conn.cursor() as cur:
+        cur.execute("select camera, photographer from camera_photographer")
+        records = cur.fetchall()
+
     camera_photographers = {}
-    for record in response['records']:
-        camera = record[0]['stringValue']
-        photographer = record[1]['stringValue']
+    for record in records:
+        camera = record[0]
+        photographer = record[1]
         camera_photographers[camera] = photographer
 
     for record in s3_records:
@@ -101,66 +97,41 @@ def lambda_handler(event, context):
 
             time_processed = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
 
-            rds_client.execute_statement(
-                resourceArn = cluster_arn, 
-                secretArn = secret_arn, 
-                database = database, 
-                sql = 'insert into images (id, time_created, time_processed) values (:id, :time_created, :time_processed)',
-                parameters = [
+            with conn.cursor() as cur:
+                cur.execute(
+                    "insert into images (id, time_created, time_processed) values (%(id)s, %(time_created)s, %(time_processed)s)",
                     {
-                        'name': 'id',
-                        'value': {'stringValue': image_id}
+                        'id': image_id,
+                        'time_created':  time_created,
+                        'time_processed':  time_processed,
                     },
-                    {
-                        'name': 'time_created',
-                        'value': {'stringValue': time_created}
-                    },
-                    {
-                        'name': 'time_processed',
-                        'value': {'stringValue': time_processed}
-                    }
-                ]
-            )
+                )
 
             try:
                 camera = exif_data['Make']
                 camera += f" {exif_data['Model']}"
-                rds_client.execute_statement(
-                    resourceArn = cluster_arn,
-                    secretArn = secret_arn,
-                    database = database,
-                    sql = 'insert into image_metadata (image_id, type, value) values (:id, "camera", :camera)',
-                    parameters = [
+
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "insert into image_metadata (image_id, type, value) values (%(id)s, 'camera', %(camera)s)",
                         {
-                            'name': 'id',
-                            'value': {'stringValue': image_id}
-                        },
-                        {
-                            'name': 'camera',
-                            'value': {'stringValue': camera}
-                        },
-                    ]
-                )
+                            'id': image_id,
+                            'camera': camera,
+                        }
+                    )
 
                 try:
                     photographer = camera_photographers[camera]
                     print(photographer)
-                    rds_client.execute_statement(
-                        resourceArn = cluster_arn,
-                        secretArn = secret_arn,
-                        database = database,
-                        sql = 'insert into image_metadata (image_id, type, value) values (:id, "photographer", :photographer)',
-                        parameters = [
+
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            "insert into image_metadata (image_id, type, value) values (%(id)s, 'photographer', %(photographer)s)",
                             {
-                                'name': 'id',
-                                'value': {'stringValue': image_id}
-                            },
-                            {
-                                'name': 'photographer',
-                                'value': {'stringValue': photographer}
-                            },
-                        ]
-                    )
+                                'id': image_id,
+                                'photographer': photographer,
+                            }
+                        )
 
                 except KeyError:
                     print("No photographer for camera")
@@ -203,4 +174,6 @@ def lambda_handler(event, context):
                     target_key,
                     ExtraArgs={'ContentType': 'image/jpeg'}
                 )
-        
+
+    conn.commit()
+    conn.close()

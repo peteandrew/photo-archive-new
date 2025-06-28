@@ -1,3 +1,7 @@
 *.zip
 PIL
 Pillow*
+db_backup
+**/.DS_Store
+**/psycopg2*
+**/__pycache__
